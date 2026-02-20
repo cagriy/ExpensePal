@@ -23,7 +23,7 @@ SUPPORTED_IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "i
 SUPPORTED_TYPES = set(SUPPORTED_IMAGE_TYPES.keys()) | {".pdf"}
 
 
-def scan_receipt(file_path: Path) -> dict:
+def scan_receipt(file_path: Path, model: str | None = None) -> dict:
     """Send a receipt image or PDF to Claude for extraction and classification.
 
     Returns a dict with keys: date, total_amount, vat_amount, category.
@@ -67,7 +67,7 @@ def scan_receipt(file_path: Path) -> dict:
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     message = client.messages.create(
-        model=ANTHROPIC_MODEL,
+        model=model or ANTHROPIC_MODEL,
         max_tokens=512,
         system=system_prompt,
         messages=[

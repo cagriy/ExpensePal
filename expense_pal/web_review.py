@@ -441,8 +441,8 @@ _MULTI_HTML_TEMPLATE = """\
   button:disabled {{ opacity: 0.4; cursor: not-allowed; }}
   .btn-confirm {{ background: #4f7cf8; color: #fff; }}
   .btn-confirm:hover:not(:disabled) {{ background: #3a6ae0; }}
-  .btn-skip {{ background: #eee; color: #555; }}
-  .btn-skip:hover:not(:disabled) {{ background: #ddd; }}
+  .btn-reprocess {{ background: #eee; color: #555; }}
+  .btn-reprocess:hover:not(:disabled) {{ background: #ddd; }}
   .btn-quit {{ background: #fee2e2; color: #b91c1c; }}
   .btn-quit:hover:not(:disabled) {{ background: #fecaca; }}
   .status-msg {{ font-size: 0.82rem; color: #888; text-align: center; min-height: 18px; }}
@@ -491,9 +491,17 @@ _MULTI_HTML_TEMPLATE = """\
         {category_options}
       </select>
     </div>
+    <div>
+      <label for="modelSelect">Model</label>
+      <select id="modelSelect" name="modelSelect">
+        <option value="claude-haiku-4-5-20251001">Haiku</option>
+        <option value="claude-sonnet-4-6" selected>Sonnet</option>
+        <option value="claude-opus-4-6">Opus</option>
+      </select>
+    </div>
     <div class="buttons">
       <button class="btn-confirm" onclick="doConfirm()" disabled id="btnConfirm">Confirm</button>
-      <button class="btn-skip" onclick="doSkip()" disabled id="btnSkip">Skip</button>
+      <button class="btn-reprocess" onclick="doReprocess()" disabled id="btnReprocess">Re-process</button>
       <button class="btn-quit" onclick="doQuit()" id="btnQuit">Quit</button>
     </div>
     <div class="status-msg" id="statusMsg"></div>
@@ -511,7 +519,7 @@ _MULTI_HTML_TEMPLATE = """\
       document.getElementById(id).disabled = !enabled;
     }});
     document.getElementById('btnConfirm').disabled = !enabled;
-    document.getElementById('btnSkip').disabled = !enabled;
+    document.getElementById('btnReprocess').disabled = !enabled;
   }}
 
   function resetForm() {{
@@ -574,7 +582,12 @@ _MULTI_HTML_TEMPLATE = """\
     document.getElementById('spinner').style.display = 'block';
     setFormEnabled(false);
     setStatus('Scanning with Claude\u2026');
-    fetch('/select/' + encodeURIComponent(name), {{method: 'POST'}})
+    const model = document.getElementById('modelSelect').value;
+    fetch('/select/' + encodeURIComponent(name), {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{model: model}}),
+    }})
       .then(r => r.json())
       .then(data => {{
         document.getElementById('spinner').style.display = 'none';
@@ -630,13 +643,34 @@ _MULTI_HTML_TEMPLATE = """\
     }});
   }}
 
-  function doSkip() {{
+  function doReprocess() {{
     if (!currentFile) return;
-    const skipped = currentFile;
-    fetch('/skip', {{method: 'POST'}}).then(() => {{
-      resetForm();
-      setStatus('Skipped: ' + skipped);
-    }});
+    const model = document.getElementById('modelSelect').value;
+    const name = currentFile;
+    const preview = document.getElementById('preview');
+    setFormEnabled(false);
+    document.getElementById('spinner').style.display = 'block';
+    setStatus('Re-scanning with Claude\u2026');
+    fetch('/reprocess/' + encodeURIComponent(name), {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{model: model}}),
+    }})
+      .then(r => r.json())
+      .then(data => {{
+        document.getElementById('spinner').style.display = 'none';
+        document.getElementById('date').value = data.date || '';
+        document.getElementById('total_amount').value = data.total_amount || '';
+        document.getElementById('vat_amount').value = data.vat_amount || '';
+        document.getElementById('description').value = data.description || '';
+        document.getElementById('category').value = data.category || '';
+        setFormEnabled(true);
+        setStatus('');
+      }})
+      .catch(() => {{
+        document.getElementById('spinner').style.display = 'none';
+        setStatus('Error re-scanning file.');
+      }});
   }}
 
   function doQuit() {{
@@ -673,6 +707,7 @@ def review_receipts_batch(folder: Path, categories: list[dict]) -> list[dict]:
     port = _free_port()
     confirmed_entries: list[dict] = []
     shutdown_event = threading.Event()
+    scan_cache: dict[str, dict] = {}
 
     app = Flask(__name__)
     app.logger.disabled = True
@@ -700,7 +735,24 @@ def review_receipts_batch(folder: Path, categories: list[dict]) -> list[dict]:
         file_path = folder / filename
         if not file_path.exists():
             return jsonify({"error": "File not found"}), 404
-        extracted = scan_receipt(file_path)
+        if filename in scan_cache:
+            return jsonify(scan_cache[filename])
+        body = request.get_json(force=True, silent=True) or {}
+        model = body.get("model")
+        extracted = scan_receipt(file_path, model=model)
+        scan_cache[filename] = extracted
+        return jsonify(extracted)
+
+    @app.route("/reprocess/<filename>", methods=["POST"])
+    def reprocess_file(filename):
+        file_path = folder / filename
+        if not file_path.exists():
+            return jsonify({"error": "File not found"}), 404
+        scan_cache.pop(filename, None)
+        body = request.get_json(force=True, silent=True) or {}
+        model = body.get("model")
+        extracted = scan_receipt(file_path, model=model)
+        scan_cache[filename] = extracted
         return jsonify(extracted)
 
     @app.route("/image/<filename>")
@@ -728,6 +780,7 @@ def review_receipts_batch(folder: Path, categories: list[dict]) -> list[dict]:
         confirmed_entries.append(entry)
         with EXPENSES_LOG.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
+        scan_cache.pop(filename, None)
         done_dir = folder / "done"
         done_dir.mkdir(exist_ok=True)
         if file_path.exists():
@@ -738,10 +791,6 @@ def review_receipts_batch(folder: Path, categories: list[dict]) -> list[dict]:
             t.daemon = True
             t.start()
         return jsonify({"ok": True})
-
-    @app.route("/skip", methods=["POST"])
-    def skip():
-        return "", 204
 
     @app.route("/quit", methods=["POST"])
     def quit_():
