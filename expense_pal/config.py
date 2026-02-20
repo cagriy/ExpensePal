@@ -15,7 +15,7 @@ CLIENT_ID = os.environ.get("FREEAGENT_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("FREEAGENT_CLIENT_SECRET", "")
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-6")
 
 _blacklist_raw = os.environ.get("EXPENSE_PAL_CATEGORY_BLACKLIST", "")
 CATEGORY_BLACKLIST: set[str] = {

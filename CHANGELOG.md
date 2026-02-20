@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-02-20
+
+### Changed
+- Default model switched from `claude-haiku-4-5-20251001` to `claude-opus-4-6`
+
 ## [0.1.3] - 2026-02-20
 
 ### Added
