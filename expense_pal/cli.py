@@ -90,6 +90,45 @@ def cmd_scan(args):
     print(f"Saved to {EXPENSES_LOG}")
 
 
+def cmd_multi_scan(args):
+    from expense_pal.web_review import review_receipts_batch
+    from expense_pal.categories import get_all_categories
+
+    folder = Path(args.folder).resolve()
+
+    if not folder.exists():
+        print(f"Error: folder not found: {folder}", file=sys.stderr)
+        sys.exit(1)
+
+    if not folder.is_dir():
+        print(f"Error: not a directory: {folder}", file=sys.stderr)
+        sys.exit(1)
+
+    if not ANTHROPIC_API_KEY:
+        print(
+            "Error: ANTHROPIC_API_KEY is not set.\n"
+            "Add it to your .env file or export it in your shell.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    pending = sorted(
+        f.name for f in folder.iterdir()
+        if f.is_file() and f.suffix.lower() in SUPPORTED_SCAN_EXTENSIONS
+    )
+    if not pending:
+        print(f"No supported receipt files found in {folder}")
+        print(f"Supported formats: {', '.join(sorted(SUPPORTED_SCAN_EXTENSIONS))}")
+        return
+
+    print(f"Found {len(pending)} receipt(s) in {folder}")
+    categories = get_all_categories()
+    confirmed = review_receipts_batch(folder, categories)
+    print(f"\nProcessed {len(confirmed)} receipt(s).")
+    if confirmed:
+        print(f"Saved to {EXPENSES_LOG}")
+
+
 def main():
     parser = argparse.ArgumentParser(prog="expense-pal", description="FreeAgent expense manager")
     parser.add_argument("--version", action="version", version=f"%(prog)s {version('expense-pal')}")
@@ -99,11 +138,21 @@ def main():
     scan_parser = sub.add_parser("scan", help="Scan a receipt or invoice with Claude")
     scan_parser.add_argument("file", help="Path to receipt image (.jpg, .png) or PDF (.pdf)")
 
+    multi_scan_parser = sub.add_parser("multi-scan", help="Batch-process receipts from a folder")
+    multi_scan_parser.add_argument(
+        "folder",
+        nargs="?",
+        default="receipts",
+        help="Folder containing receipts (default: receipts/)",
+    )
+
     args = parser.parse_args()
     if args.command == "list":
         cmd_list(args)
     elif args.command == "scan":
         cmd_scan(args)
+    elif args.command == "multi-scan":
+        cmd_multi_scan(args)
     else:
         parser.print_help()
         sys.exit(1)

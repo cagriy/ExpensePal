@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-02-20
+
+### Added
+- `multi-scan` command for batch receipt processing from a folder
+- `web_review.py`: `review_receipts_batch()` — persistent Flask server with three-column UI (file list sidebar, image/PDF preview, editable form)
+- Confirmed receipts are moved to `<folder>/done/` automatically; skipped files stay in the list
+- Server shuts down automatically when all files are confirmed or the user clicks Quit
+
 ## [0.1.2] - 2026-02-20
 
 ### Changed
