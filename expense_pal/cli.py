@@ -1,6 +1,5 @@
 import argparse
 import json
-import subprocess
 import sys
 from datetime import datetime, timezone
 from importlib.metadata import version
@@ -35,7 +34,7 @@ def cmd_list(args):
 
 def cmd_scan(args):
     from expense_pal.scanner import scan_receipt
-    from expense_pal.tui import ReviewApp
+    from expense_pal.web_review import review_receipt
     from expense_pal.categories import get_all_categories, get_nominal_code
 
     file_path = Path(args.file).resolve()
@@ -64,15 +63,8 @@ def cmd_scan(args):
     extracted = scan_receipt(file_path)
     print(f"Extracted: {extracted}")
 
-    # Open file in default viewer so user can see it alongside the TUI
-    try:
-        subprocess.Popen(["open", str(file_path)])
-    except Exception:
-        pass  # Non-fatal; viewer may not be available on all platforms
-
     categories = get_all_categories()
-    app = ReviewApp(extracted, categories)
-    confirmed = app.run()
+    confirmed = review_receipt(extracted, categories, file_path)
 
     if confirmed is None:
         print("Cancelled — nothing saved.")
