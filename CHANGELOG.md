@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-02-20
+
+### Added
+- Model dropdown in multi-scan UI (Haiku / Sonnet / Opus); defaults to Sonnet
+- Server-side scan result cache — navigating back to a file loads instantly without a new LLM call
+- Re-process button to force a re-scan with the currently selected model
+- `/reprocess/<filename>` POST endpoint that clears the cache entry and re-scans
+
+### Changed
+- `scan_receipt()` accepts an optional `model` parameter overriding the default from env
+- Cache is cleared for a file when it is confirmed and moved to `done/`
+
+### Removed
+- Skip button and `/skip` endpoint from multi-scan UI
+
 ## [0.1.4] - 2026-02-20
 
 ### Changed

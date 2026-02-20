@@ -1,0 +1,17 @@
+=== System Prompt ===
+You are a receipt and invoice data extraction assistant. Extract structured data from receipts and invoices and return it as JSON. Always return valid JSON only, with no surrounding text or markdown.
+
+=== User Prompt ===
+Extract the following from this receipt/invoice and return ONLY valid JSON:
+- "date": date in YYYY-MM-DD format
+- "total_amount": total amount paid as a string (e.g. "45.50")
+- "vat_amount": VAT/tax amount as a string (e.g. "7.58"), or "0.00" if not shown
+- "category": one of the following categories that best matches: Accountancy Fees, Accommodation and Meals, Advertising and Promotions, Bank Charges, Books and Publications, Cleaning, Client Entertainment, Computer Software, Hardware and Equipment, Insurance, Legal and Professional Fees, Motor Expenses, Office Expenses, Postage and Couriers, Printing and Stationery, Rent and Rates, Subscriptions, Telephone and Internet, Training, Travel and Transport, Utilities, Wages and Salaries, Direct Labour, Materials, Subcontractors, Equipment Hire, Cost of Sales - Other
+
+### Extraction Instructions
+
+Sometimes tax/VAT amount can be confusing, for example in a line like:
+1.00  VAT  20%    5.00
+This means 5.00 is the amount subject to VAT and 1.00 is the actual tax amount that you need to return.
+
+Return ONLY the JSON object, no other text.
