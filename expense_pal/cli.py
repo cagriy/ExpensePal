@@ -3,6 +3,7 @@ import json
 import subprocess
 import sys
 from datetime import datetime, timezone
+from importlib.metadata import version
 from pathlib import Path
 
 from expense_pal.config import ANTHROPIC_API_KEY, EXPENSES_LOG, require_credentials
@@ -99,6 +100,7 @@ def cmd_scan(args):
 
 def main():
     parser = argparse.ArgumentParser(prog="expense-pal", description="FreeAgent expense manager")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {version('expense-pal')}")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("list", help="List recent expenses")
 
