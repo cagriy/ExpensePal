@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "expense-pal"
+version = "0.1.0"
+description = "CLI tool to manage FreeAgent expenses"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "python-dotenv",
+    "anthropic",
+    "textual",
+]
+
+[project.scripts]
+expense-pal = "expense_pal.cli:main"

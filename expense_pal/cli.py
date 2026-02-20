@@ -1,0 +1,119 @@
+import argparse
+import json
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+from expense_pal.config import ANTHROPIC_API_KEY, EXPENSES_LOG, require_credentials
+from expense_pal.auth import get_access_token
+from expense_pal.api import list_expenses
+
+SUPPORTED_SCAN_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf"}
+
+
+def cmd_list(args):
+    require_credentials()
+    token = get_access_token()
+    expenses = list_expenses(token)
+
+    if not expenses:
+        print("No expenses found.")
+        return
+
+    header = f"{'Date':<12} {'Description':<40} {'Amount':>10} {'Currency':<5}"
+    print(header)
+    print("-" * len(header))
+    for exp in expenses:
+        date = exp.get("dated_on", "")
+        desc = exp.get("description", "")[:40]
+        gross = exp.get("gross_value", "")
+        currency = exp.get("currency", "")
+        print(f"{date:<12} {desc:<40} {gross:>10} {currency:<5}")
+
+
+def cmd_scan(args):
+    from expense_pal.scanner import scan_receipt
+    from expense_pal.tui import ReviewApp
+    from expense_pal.categories import get_all_categories, get_nominal_code
+
+    file_path = Path(args.file).resolve()
+
+    if not file_path.exists():
+        print(f"Error: file not found: {file_path}", file=sys.stderr)
+        sys.exit(1)
+
+    if file_path.suffix.lower() not in SUPPORTED_SCAN_EXTENSIONS:
+        print(
+            f"Error: unsupported file type '{file_path.suffix}'. "
+            f"Supported: {', '.join(sorted(SUPPORTED_SCAN_EXTENSIONS))}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if not ANTHROPIC_API_KEY:
+        print(
+            "Error: ANTHROPIC_API_KEY is not set.\n"
+            "Add it to your .env file or export it in your shell.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    print(f"Scanning {file_path.name} with Claude...")
+    extracted = scan_receipt(file_path)
+    print(f"Extracted: {extracted}")
+
+    # Open file in default viewer so user can see it alongside the TUI
+    try:
+        subprocess.Popen(["open", str(file_path)])
+    except Exception:
+        pass  # Non-fatal; viewer may not be available on all platforms
+
+    categories = get_all_categories()
+    app = ReviewApp(extracted, categories)
+    confirmed = app.run()
+
+    if confirmed is None:
+        print("Cancelled — nothing saved.")
+        return
+
+    # Look up nominal code for the chosen category
+    nominal_code = get_nominal_code(confirmed["category"]) or ""
+
+    entry = {
+        "date": confirmed["date"],
+        "total_amount": confirmed["total_amount"],
+        "vat_amount": confirmed["vat_amount"],
+        "category": confirmed["category"],
+        "category_nominal_code": nominal_code,
+        "description": confirmed["description"],
+        "source_file": str(file_path),
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+
+    with EXPENSES_LOG.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+
+    print(f"Saved to {EXPENSES_LOG}")
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="expense-pal", description="FreeAgent expense manager")
+    sub = parser.add_subparsers(dest="command")
+    sub.add_parser("list", help="List recent expenses")
+
+    scan_parser = sub.add_parser("scan", help="Scan a receipt or invoice with Claude")
+    scan_parser.add_argument("file", help="Path to receipt image (.jpg, .png) or PDF (.pdf)")
+
+    args = parser.parse_args()
+    if args.command == "list":
+        cmd_list(args)
+    elif args.command == "scan":
+        cmd_scan(args)
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
