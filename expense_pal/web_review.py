@@ -800,8 +800,11 @@ _MULTI_HTML_TEMPLATE = """\
     }}).then(r => r.json()).then(data => {{
       const el = document.getElementById('promptStatus');
       if (data.ok) {{
+        savedPrompt = content;
+        document.getElementById('btnSavePrompt').disabled = true;
         el.style.color = 'green';
         el.textContent = 'Prompt saved.';
+        setTimeout(() => {{ el.textContent = ''; }}, 5000);
       }} else {{
         el.style.color = 'red';
         el.textContent = 'Error: ' + (data.error || 'unknown');
@@ -852,6 +855,11 @@ _MULTI_HTML_TEMPLATE = """\
     if (resizerBottom && trainSection) {{
       initResizer(resizerBottom, trainSection, 'h', -1);
     }}
+    var savedPrompt = document.getElementById('promptEditor').value;
+    document.getElementById('btnSavePrompt').disabled = true;
+    document.getElementById('promptEditor').addEventListener('input', function() {{
+      document.getElementById('btnSavePrompt').disabled = (this.value === savedPrompt);
+    }});
   }}
 
   loadFiles();
@@ -897,8 +905,9 @@ def _build_train_section(prompt_text: str) -> str:
         'font-size:0.82rem;border:1px solid #ccc;border-radius:4px;padding:0.5rem;'
         'margin-top:0.5rem;resize:none;">' + escaped + "</textarea>"
         '<div style="margin-top:0.5rem;display:flex;align-items:center;gap:0.75rem;flex-shrink:0;">'
-        '<button onclick="doSavePrompt()" style="padding:0.4rem 1rem;background:#4a90d9;'
-        'color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;">'
+        '<button id="btnSavePrompt" onclick="doSavePrompt()" disabled '
+        'style="padding:0.4rem 1rem;background:#4a90d9;color:#fff;border:none;border-radius:4px;'
+        'cursor:pointer;font-size:0.85rem;">'
         "Save Prompt</button>"
         '<span id="promptStatus" style="font-size:0.82rem;"></span>'
         "</div></div>"

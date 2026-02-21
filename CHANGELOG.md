@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-02-21
+
+### Changed
+- Save Prompt button in `--train` mode is now disabled until the prompt text differs from its last-saved value
+- "Prompt saved." status message auto-dismisses after 5 seconds; error messages remain visible
+
 ## [0.1.8] - 2026-02-21
 
 ### Added
