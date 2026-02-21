@@ -5,3 +5,5 @@ dist/
 .venv/
 .claude/
 expenses.jsonl
+logs
+.DS_Store
