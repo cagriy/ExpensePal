@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-02-21
+
+### Added
+- `sync-descriptions` command: fetches up to 200 expense descriptions from FreeAgent and saves them to a local file
+- LLM-powered description recommendations: the receipt extraction prompt now includes known descriptions and instructs Claude to reuse or create a concise one
+- Custom autocomplete dropdown for the description field in both single-scan and multi-scan UIs, with full color control (replaces native `<datalist>`)
+- `load_descriptions()` and `save_description()` helpers in `config.py`; new descriptions are auto-appended on confirm
+
+### Changed
+- Description field is now pre-filled with the LLM's suggestion; clicking selects all text so typing immediately replaces it
+- `max_tokens` increased from 512 to 1024 in `scan_receipt()` to accommodate the description field
+- `scan_receipt()` return dict now includes a `description` key
+
 ## [0.1.5] - 2026-02-20
 
 ### Added

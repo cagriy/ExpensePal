@@ -8,6 +8,7 @@ load_dotenv()
 
 BASE_URL = "https://api.freeagent.com/v2"
 TOKEN_PATH = Path.home() / ".config" / "expense-pal" / "tokens.json"
+DESCRIPTIONS_FILE = Path.home() / ".config" / "expense-pal" / "descriptions.txt"
 CALLBACK_URL = "http://localhost:8374/callback"
 CALLBACK_PORT = 8374
 
@@ -23,6 +24,24 @@ CATEGORY_BLACKLIST: set[str] = {
 }
 
 EXPENSES_LOG = Path("expenses.jsonl")
+
+
+def load_descriptions() -> list[str]:
+    if not DESCRIPTIONS_FILE.exists():
+        return []
+    return [line for line in DESCRIPTIONS_FILE.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def save_description(desc: str):
+    desc = desc.strip()
+    if not desc:
+        return
+    existing = load_descriptions()
+    if desc in existing:
+        return
+    DESCRIPTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with DESCRIPTIONS_FILE.open("a", encoding="utf-8") as f:
+        f.write(desc + "\n")
 
 
 def require_credentials():

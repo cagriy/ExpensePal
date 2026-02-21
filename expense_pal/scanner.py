@@ -7,7 +7,7 @@ from pathlib import Path
 
 import anthropic
 
-from expense_pal.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+from expense_pal.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, load_descriptions
 from expense_pal.categories import get_llm_category_names
 
 _PROMPTS_FILE = Path(__file__).parent / "prompts" / "receipt_extraction.md"
@@ -56,8 +56,13 @@ def scan_receipt(file_path: Path, model: str | None = None) -> dict:
         }
 
     category_list = ", ".join(get_llm_category_names())
+    descriptions = load_descriptions()
+    if descriptions:
+        description_list = "\n".join(f"- {d}" for d in descriptions)
+    else:
+        description_list = "No known descriptions available."
     system_prompt, user_prompt_template = _load_prompts()
-    prompt = user_prompt_template.format(category_list=category_list)
+    prompt = user_prompt_template.format(category_list=category_list, description_list=description_list)
 
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
@@ -68,7 +73,7 @@ def scan_receipt(file_path: Path, model: str | None = None) -> dict:
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     message = client.messages.create(
         model=model or ANTHROPIC_MODEL,
-        max_tokens=512,
+        max_tokens=1024,
         system=system_prompt,
         messages=[
             {
@@ -95,4 +100,5 @@ def scan_receipt(file_path: Path, model: str | None = None) -> dict:
         "total_amount": result.get("total_amount", "0.00"),
         "vat_amount": result.get("vat_amount", "0.00"),
         "category": result.get("category", ""),
+        "description": result.get("description", ""),
     }

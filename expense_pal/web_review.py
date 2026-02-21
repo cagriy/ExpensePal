@@ -8,6 +8,8 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_file
 
+from expense_pal.config import load_descriptions, save_description
+
 
 _HTML_TEMPLATE = """\
 <!DOCTYPE html>
@@ -129,6 +131,29 @@ _HTML_TEMPLATE = """\
     color: #4f7cf8;
     font-weight: 600;
   }}
+  .ac-wrapper {{ position: relative; }}
+  .ac-dropdown {{
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }}
+  .ac-item {{
+    padding: 8px 10px;
+    font-size: 0.92rem;
+    color: #222;
+    cursor: pointer;
+  }}
+  .ac-item:hover {{ background: #e8eeff; color: #3a6ae0; }}
 </style>
 </head>
 <body>
@@ -153,7 +178,10 @@ _HTML_TEMPLATE = """\
     </div>
     <div>
       <label for="description">Description</label>
-      <input type="text" id="description" name="description" value="{description}" placeholder="Enter description…">
+      <div class="ac-wrapper">
+        <input type="text" id="description" name="description" value="{description}" placeholder="Enter description…" autocomplete="off">
+        <div class="ac-dropdown" id="desc-dropdown"></div>
+      </div>
     </div>
     <div>
       <label for="category">Category</label>
@@ -194,6 +222,28 @@ _HTML_TEMPLATE = """\
       document.getElementById('done-msg').style.display = 'block';
     }});
   }}
+  (function() {{
+    const inp = document.getElementById('description');
+    const dd = document.getElementById('desc-dropdown');
+    const sugg = {description_json};
+    inp.addEventListener('focus', function() {{ this.select(); }});
+    inp.addEventListener('mouseup', function(e) {{ if (this === document.activeElement) e.preventDefault(); }});
+    inp.addEventListener('input', function() {{
+      const v = this.value.toLowerCase();
+      dd.innerHTML = '';
+      const hits = sugg.filter(s => s.toLowerCase().includes(v));
+      if (!hits.length) {{ dd.style.display = 'none'; return; }}
+      hits.forEach(s => {{
+        const el = document.createElement('div');
+        el.className = 'ac-item';
+        el.textContent = s;
+        el.addEventListener('mousedown', e => {{ e.preventDefault(); inp.value = s; dd.style.display = 'none'; }});
+        dd.appendChild(el);
+      }});
+      dd.style.display = 'block';
+    }});
+    inp.addEventListener('blur', () => {{ setTimeout(() => {{ dd.style.display = 'none'; }}, 150); }});
+  }})();
 </script>
 </body>
 </html>
@@ -237,6 +287,8 @@ def review_receipt(extracted_data: dict, categories: list[dict], file_path: Path
         selected = 'selected' if desc == llm_category else ''
         options_html += f'<option value="{desc}" {selected}>{desc}</option>\n'
 
+    description_json = json.dumps(load_descriptions())
+
     page_html = _HTML_TEMPLATE.format(
         filename=file_path.name,
         media_tag=media_tag,
@@ -245,6 +297,7 @@ def review_receipt(extracted_data: dict, categories: list[dict], file_path: Path
         vat_amount=extracted_data.get("vat_amount", "0.00"),
         description=extracted_data.get("description", ""),
         category_options=options_html,
+        description_json=description_json,
     )
 
     @app.route("/")
@@ -259,6 +312,7 @@ def review_receipt(extracted_data: dict, categories: list[dict], file_path: Path
     @app.route("/submit", methods=["POST"])
     def submit():
         data = request.get_json(force=True)
+        save_description(data.get("description", ""))
         result_holder.append(data)
         shutdown_event.set()
         return "", 204
@@ -446,6 +500,29 @@ _MULTI_HTML_TEMPLATE = """\
   .btn-quit {{ background: #fee2e2; color: #b91c1c; }}
   .btn-quit:hover:not(:disabled) {{ background: #fecaca; }}
   .status-msg {{ font-size: 0.82rem; color: #888; text-align: center; min-height: 18px; }}
+  .ac-wrapper {{ position: relative; }}
+  .ac-dropdown {{
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }}
+  .ac-item {{
+    padding: 8px 10px;
+    font-size: 0.92rem;
+    color: #222;
+    cursor: pointer;
+  }}
+  .ac-item:hover {{ background: #e8eeff; color: #3a6ae0; }}
 </style>
 </head>
 <body>
@@ -482,7 +559,10 @@ _MULTI_HTML_TEMPLATE = """\
     </div>
     <div>
       <label for="description">Description</label>
-      <input type="text" id="description" name="description" placeholder="Enter description&hellip;" disabled>
+      <div class="ac-wrapper">
+        <input type="text" id="description" name="description" placeholder="Enter description&hellip;" disabled autocomplete="off">
+        <div class="ac-dropdown" id="desc-dropdown"></div>
+      </div>
     </div>
     <div>
       <label for="category">Category</label>
@@ -680,6 +760,29 @@ _MULTI_HTML_TEMPLATE = """\
   }}
 
   loadFiles();
+  (function() {{
+    const inp = document.getElementById('description');
+    const dd = document.getElementById('desc-dropdown');
+    const sugg = {description_json};
+    inp.addEventListener('focus', function() {{ if (!this.disabled) this.select(); }});
+    inp.addEventListener('mouseup', function(e) {{ if (!this.disabled && this === document.activeElement) e.preventDefault(); }});
+    inp.addEventListener('input', function() {{
+      if (this.disabled) return;
+      const v = this.value.toLowerCase();
+      dd.innerHTML = '';
+      const hits = sugg.filter(s => s.toLowerCase().includes(v));
+      if (!hits.length) {{ dd.style.display = 'none'; return; }}
+      hits.forEach(s => {{
+        const el = document.createElement('div');
+        el.className = 'ac-item';
+        el.textContent = s;
+        el.addEventListener('mousedown', e => {{ e.preventDefault(); inp.value = s; dd.style.display = 'none'; }});
+        dd.appendChild(el);
+      }});
+      dd.style.display = 'block';
+    }});
+    inp.addEventListener('blur', () => {{ setTimeout(() => {{ dd.style.display = 'none'; }}, 150); }});
+  }})();
 </script>
 </body>
 </html>
@@ -720,7 +823,12 @@ def review_receipts_batch(folder: Path, categories: list[dict]) -> list[dict]:
         desc = cat["description"]
         options_html += f'<option value="{desc}">{desc}</option>\n'
 
-    page_html = _MULTI_HTML_TEMPLATE.format(category_options=options_html)
+    description_json = json.dumps(load_descriptions())
+
+    page_html = _MULTI_HTML_TEMPLATE.format(
+        category_options=options_html,
+        description_json=description_json,
+    )
 
     @app.route("/")
     def index():
@@ -764,6 +872,7 @@ def review_receipts_batch(folder: Path, categories: list[dict]) -> list[dict]:
     @app.route("/submit", methods=["POST"])
     def submit():
         data = request.get_json(force=True)
+        save_description(data.get("description", ""))
         filename = data.get("filename", "")
         file_path = folder / filename
         nominal_code = get_nominal_code(data.get("category", "")) or ""

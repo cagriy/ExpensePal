@@ -5,9 +5,9 @@ from datetime import datetime, timezone
 from importlib.metadata import version
 from pathlib import Path
 
-from expense_pal.config import ANTHROPIC_API_KEY, EXPENSES_LOG, require_credentials
+from expense_pal.config import ANTHROPIC_API_KEY, DESCRIPTIONS_FILE, EXPENSES_LOG, require_credentials, save_description
 from expense_pal.auth import get_access_token
-from expense_pal.api import list_expenses
+from expense_pal.api import fetch_expense_descriptions, list_expenses
 
 SUPPORTED_SCAN_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf"}
 
@@ -30,6 +30,15 @@ def cmd_list(args):
         gross = exp.get("gross_value", "")
         currency = exp.get("currency", "")
         print(f"{date:<12} {desc:<40} {gross:>10} {currency:<5}")
+
+
+def cmd_sync_descriptions(args):
+    require_credentials()
+    token = get_access_token()
+    descriptions = fetch_expense_descriptions(token, total=200)
+    DESCRIPTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    DESCRIPTIONS_FILE.write_text("\n".join(descriptions) + ("\n" if descriptions else ""), encoding="utf-8")
+    print(f"Saved {len(descriptions)} descriptions to {DESCRIPTIONS_FILE}")
 
 
 def cmd_scan(args):
@@ -87,6 +96,7 @@ def cmd_scan(args):
     with EXPENSES_LOG.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
 
+    save_description(confirmed["description"])
     print(f"Saved to {EXPENSES_LOG}")
 
 
@@ -146,6 +156,8 @@ def main():
         help="Folder containing receipts (default: receipts/)",
     )
 
+    sub.add_parser("sync-descriptions", help="Sync expense descriptions from FreeAgent")
+
     args = parser.parse_args()
     if args.command == "list":
         cmd_list(args)
@@ -153,6 +165,8 @@ def main():
         cmd_scan(args)
     elif args.command == "multi-scan":
         cmd_multi_scan(args)
+    elif args.command == "sync-descriptions":
+        cmd_sync_descriptions(args)
     else:
         parser.print_help()
         sys.exit(1)
