@@ -256,6 +256,18 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
+def _wait_for_server(port: int, timeout: float = 3.0):
+    """Poll until the server is accepting connections, then return."""
+    import time
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.05):
+                return
+        except OSError:
+            time.sleep(0.05)
+
+
 def review_receipt(extracted_data: dict, categories: list[dict], file_path: Path) -> dict | None:
     """Serve a local web form for reviewing/editing extracted receipt data.
 
@@ -328,6 +340,7 @@ def review_receipt(extracted_data: dict, categories: list[dict], file_path: Path
         daemon=True,
     )
     server_thread.start()
+    _wait_for_server(port)
 
     url = f"http://127.0.0.1:{port}/"
     webbrowser.open(url)
@@ -911,6 +924,7 @@ def review_receipts_batch(folder: Path, categories: list[dict]) -> list[dict]:
         daemon=True,
     )
     server_thread.start()
+    _wait_for_server(port)
 
     url = f"http://127.0.0.1:{port}/"
     webbrowser.open(url)
