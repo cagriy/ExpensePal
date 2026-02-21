@@ -379,13 +379,31 @@ _MULTI_HTML_TEMPLATE = """\
     overflow: hidden;
   }}
   .sidebar {{
-    width: 220px;
-    min-width: 160px;
+    min-width: 120px;
     background: #fff;
-    border-right: 1px solid #ddd;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }}
+  .resizer {{
+    width: 5px;
+    cursor: col-resize;
+    background: #ddd;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }}
+  .resizer:hover, .resizer.active {{
+    background: #4a90d9;
+  }}
+  .resizer-h {{
+    height: 5px;
+    cursor: row-resize;
+    background: #ddd;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }}
+  .resizer-h:hover, .resizer-h.active {{
+    background: #4a90d9;
   }}
   .sidebar h2 {{
     font-size: 0.78rem;
@@ -464,12 +482,10 @@ _MULTI_HTML_TEMPLATE = """\
     border-radius: 8px;
   }}
   .panel {{
-    width: 380px;
-    min-width: 320px;
+    min-width: 240px;
     background: #fff;
     padding: 24px 20px;
     overflow-y: auto;
-    border-left: 1px solid #ddd;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -542,11 +558,12 @@ _MULTI_HTML_TEMPLATE = """\
 <body>
 <h1>expense-pal &mdash; Multi-Scan</h1>
 <div class="layout">
-  <div class="sidebar">
+  <div class="sidebar" id="sidebar" style="width:220px">
     <h2>Receipts</h2>
     <ul class="file-list" id="fileList"></ul>
     <div class="all-done" id="allDone">All done!</div>
   </div>
+  <div class="resizer" id="resizerLeft"></div>
   <div class="preview" id="preview">
     <div class="preview-placeholder" id="placeholder">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5">
@@ -557,7 +574,8 @@ _MULTI_HTML_TEMPLATE = """\
     </div>
     <div class="spinner" id="spinner">Scanning with Claude&hellip;</div>
   </div>
-  <div class="panel">
+  <div class="resizer" id="resizerRight"></div>
+  <div class="panel" id="panel" style="width:380px">
     <h2>Extracted Data</h2>
     <div>
       <label for="date">Date</label>
@@ -801,6 +819,41 @@ _MULTI_HTML_TEMPLATE = """\
     }});
   }}
 
+  function initResizer(resizerEl, targetEl, direction, sign) {{
+    resizerEl.addEventListener('mousedown', function(e) {{
+      e.preventDefault();
+      var startPos = direction === 'v' ? e.clientX : e.clientY;
+      var startSize = direction === 'v' ? targetEl.offsetWidth : targetEl.offsetHeight;
+      var minSize = direction === 'v' ? 120 : 80;
+      resizerEl.classList.add('active');
+      document.body.style.userSelect = 'none';
+      function onMove(e) {{
+        var delta = (direction === 'v' ? e.clientX : e.clientY) - startPos;
+        var newSize = startSize + sign * delta;
+        if (newSize >= minSize) {{
+          targetEl.style[direction === 'v' ? 'width' : 'height'] = newSize + 'px';
+        }}
+      }}
+      function onUp() {{
+        resizerEl.classList.remove('active');
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }}
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    }});
+  }}
+  initResizer(document.getElementById('resizerLeft'), document.getElementById('sidebar'), 'v', 1);
+  initResizer(document.getElementById('resizerRight'), document.getElementById('panel'), 'v', -1);
+  if (TRAIN_MODE) {{
+    var resizerBottom = document.getElementById('resizerBottom');
+    var trainSection = document.getElementById('trainSection');
+    if (resizerBottom && trainSection) {{
+      initResizer(resizerBottom, trainSection, 'h', -1);
+    }}
+  }}
+
   loadFiles();
   (function() {{
     const inp = document.getElementById('description');
@@ -836,12 +889,14 @@ def _build_train_section(prompt_text: str) -> str:
     # {category_list} / {description_list} placeholders present in the prompt file.
     escaped = html.escape(prompt_text).replace("{", "{{").replace("}", "}}")
     return (
-        '<div style="padding:1rem;background:#fff;border-top:1px solid #ddd;">'
-        '<label style="font-weight:600;font-size:0.85rem;color:#555;">Extraction Prompt</label>'
-        '<textarea id="promptEditor" style="width:100%;height:220px;font-family:monospace;'
+        '<div class="resizer-h" id="resizerBottom"></div>'
+        '<div id="trainSection" style="height:280px;background:#fff;border-top:1px solid #ddd;'
+        'display:flex;flex-direction:column;padding:1rem;flex-shrink:0;">'
+        '<label style="font-weight:600;font-size:0.85rem;color:#555;flex-shrink:0;">Extraction Prompt</label>'
+        '<textarea id="promptEditor" style="flex:1;min-height:60px;font-family:monospace;'
         'font-size:0.82rem;border:1px solid #ccc;border-radius:4px;padding:0.5rem;'
-        'margin-top:0.5rem;resize:vertical;">' + escaped + "</textarea>"
-        '<div style="margin-top:0.5rem;display:flex;align-items:center;gap:0.75rem;">'
+        'margin-top:0.5rem;resize:none;">' + escaped + "</textarea>"
+        '<div style="margin-top:0.5rem;display:flex;align-items:center;gap:0.75rem;flex-shrink:0;">'
         '<button onclick="doSavePrompt()" style="padding:0.4rem 1rem;background:#4a90d9;'
         'color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;">'
         "Save Prompt</button>"

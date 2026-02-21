@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-02-21
+
+### Added
+- Resizable pane borders in multi-scan UI: drag the dividers between the sidebar, preview, and right panel to adjust widths; drag the top edge of the train section (in `--train` mode) to adjust its height
+- Resizer divs highlight in blue on hover and during drag
+
 ## [0.1.7] - 2026-02-21
 
 ### Added
