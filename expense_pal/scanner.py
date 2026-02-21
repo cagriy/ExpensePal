@@ -11,6 +11,7 @@ from expense_pal.config import ANTHROPIC_API_KEY, ANTHROPIC_MODEL, load_descript
 from expense_pal.categories import get_llm_category_names
 
 _PROMPTS_FILE = Path(__file__).parent / "prompts" / "receipt_extraction.md"
+PROMPTS_FILE = _PROMPTS_FILE
 
 
 def _load_prompts() -> tuple[str, str]:
@@ -23,7 +24,7 @@ SUPPORTED_IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "i
 SUPPORTED_TYPES = set(SUPPORTED_IMAGE_TYPES.keys()) | {".pdf"}
 
 
-def scan_receipt(file_path: Path, model: str | None = None) -> dict:
+def scan_receipt(file_path: Path, model: str | None = None, prompt_template_override: str | None = None) -> dict:
     """Send a receipt image or PDF to Claude for extraction and classification.
 
     Returns a dict with keys: date, total_amount, vat_amount, category.
@@ -61,7 +62,12 @@ def scan_receipt(file_path: Path, model: str | None = None) -> dict:
         description_list = "\n".join(f"- {d}" for d in descriptions)
     else:
         description_list = "No known descriptions available."
-    system_prompt, user_prompt_template = _load_prompts()
+    if prompt_template_override is not None:
+        text = prompt_template_override
+        system_prompt = re.search(r"## System Prompt\n\n(.+?)(?=\n## |\Z)", text, re.DOTALL).group(1).strip()
+        user_prompt_template = re.search(r"## User Prompt\n\n(.+?)(?=\n## |\Z)", text, re.DOTALL).group(1).strip()
+    else:
+        system_prompt, user_prompt_template = _load_prompts()
     prompt = user_prompt_template.format(category_list=category_list, description_list=description_list)
 
     log_dir = Path("logs")

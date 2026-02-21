@@ -1,3 +1,4 @@
+import html
 import json
 import mimetypes
 import socket
@@ -600,7 +601,9 @@ _MULTI_HTML_TEMPLATE = """\
     <div class="status-msg" id="statusMsg"></div>
   </div>
 </div>
+{train_section}
 <script>
+  const TRAIN_MODE = {train_mode};
   let currentFile = null;
 
   function setStatus(msg) {{
@@ -744,10 +747,14 @@ _MULTI_HTML_TEMPLATE = """\
     setFormEnabled(false);
     document.getElementById('spinner').style.display = 'block';
     setStatus('Re-scanning with Claude\u2026');
+    const reprocessBody = {{model: model}};
+    if (TRAIN_MODE) {{
+      reprocessBody.prompt_template = document.getElementById('promptEditor').value;
+    }}
     fetch('/reprocess/' + encodeURIComponent(name), {{
       method: 'POST',
       headers: {{'Content-Type': 'application/json'}},
-      body: JSON.stringify({{model: model}}),
+      body: JSON.stringify(reprocessBody),
     }})
       .then(r => r.json())
       .then(data => {{
@@ -764,6 +771,28 @@ _MULTI_HTML_TEMPLATE = """\
         document.getElementById('spinner').style.display = 'none';
         setStatus('Error re-scanning file.');
       }});
+  }}
+
+  function doSavePrompt() {{
+    const content = document.getElementById('promptEditor').value;
+    fetch('/save-prompt', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{prompt_template: content}}),
+    }}).then(r => r.json()).then(data => {{
+      const el = document.getElementById('promptStatus');
+      if (data.ok) {{
+        el.style.color = 'green';
+        el.textContent = 'Prompt saved.';
+      }} else {{
+        el.style.color = 'red';
+        el.textContent = 'Error: ' + (data.error || 'unknown');
+      }}
+    }}).catch(() => {{
+      const el = document.getElementById('promptStatus');
+      el.style.color = 'red';
+      el.textContent = 'Error saving prompt.';
+    }});
   }}
 
   function doQuit() {{
@@ -802,7 +831,26 @@ _MULTI_HTML_TEMPLATE = """\
 """
 
 
-def review_receipts_batch(folder: Path, categories: list[dict]) -> list[dict]:
+def _build_train_section(prompt_text: str) -> str:
+    # HTML-escape content, then escape braces so .format() in the outer template doesn't choke on
+    # {category_list} / {description_list} placeholders present in the prompt file.
+    escaped = html.escape(prompt_text).replace("{", "{{").replace("}", "}}")
+    return (
+        '<div style="padding:1rem;background:#fff;border-top:1px solid #ddd;">'
+        '<label style="font-weight:600;font-size:0.85rem;color:#555;">Extraction Prompt</label>'
+        '<textarea id="promptEditor" style="width:100%;height:220px;font-family:monospace;'
+        'font-size:0.82rem;border:1px solid #ccc;border-radius:4px;padding:0.5rem;'
+        'margin-top:0.5rem;resize:vertical;">' + escaped + "</textarea>"
+        '<div style="margin-top:0.5rem;display:flex;align-items:center;gap:0.75rem;">'
+        '<button onclick="doSavePrompt()" style="padding:0.4rem 1rem;background:#4a90d9;'
+        'color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;">'
+        "Save Prompt</button>"
+        '<span id="promptStatus" style="font-size:0.82rem;"></span>'
+        "</div></div>"
+    )
+
+
+def review_receipts_batch(folder: Path, categories: list[dict], train: bool = False) -> list[dict]:
     """Serve a persistent web UI for batch-processing receipts from a folder.
 
     Blocks until the user clicks Quit or all files are processed.
@@ -838,9 +886,15 @@ def review_receipts_batch(folder: Path, categories: list[dict]) -> list[dict]:
 
     description_json = json.dumps(load_descriptions())
 
+    from expense_pal.scanner import PROMPTS_FILE
+    train_section = _build_train_section(PROMPTS_FILE.read_text()) if train else ""
+    train_mode_js = "true" if train else "false"
+
     page_html = _MULTI_HTML_TEMPLATE.format(
         category_options=options_html,
         description_json=description_json,
+        train_section=train_section,
+        train_mode=train_mode_js,
     )
 
     @app.route("/")
@@ -872,9 +926,20 @@ def review_receipts_batch(folder: Path, categories: list[dict]) -> list[dict]:
         scan_cache.pop(filename, None)
         body = request.get_json(force=True, silent=True) or {}
         model = body.get("model")
-        extracted = scan_receipt(file_path, model=model)
+        prompt_template = body.get("prompt_template") if train else None
+        extracted = scan_receipt(file_path, model=model, prompt_template_override=prompt_template)
         scan_cache[filename] = extracted
         return jsonify(extracted)
+
+    @app.route("/save-prompt", methods=["POST"])
+    def save_prompt():
+        if not train:
+            return jsonify({"error": "Train mode is not enabled"}), 403
+        from expense_pal.scanner import PROMPTS_FILE
+        body = request.get_json(force=True, silent=True) or {}
+        content = body.get("prompt_template", "")
+        PROMPTS_FILE.write_text(content)
+        return jsonify({"ok": True})
 
     @app.route("/image/<filename>")
     def image(filename):

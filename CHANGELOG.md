@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-02-21
+
+### Added
+- `--train` flag for `multi-scan`: adds an inline prompt editor to the web UI so users can tweak the extraction prompt, re-process a receipt with the modified prompt, and save it back to disk without leaving the browser
+- `prompt_template_override` parameter on `scan_receipt()` to use a custom prompt template string instead of reading from disk
+- `/save-prompt` POST endpoint (only active in train mode) that writes the edited template back to `expense_pal/prompts/receipt_extraction.md`
+
 ## [0.1.6] - 2026-02-21
 
 ### Added

@@ -133,7 +133,7 @@ def cmd_multi_scan(args):
 
     print(f"Found {len(pending)} receipt(s) in {folder}")
     categories = get_all_categories()
-    confirmed = review_receipts_batch(folder, categories)
+    confirmed = review_receipts_batch(folder, categories, train=args.train)
     print(f"\nProcessed {len(confirmed)} receipt(s).")
     if confirmed:
         print(f"Saved to {EXPENSES_LOG}")
@@ -154,6 +154,12 @@ def main():
         nargs="?",
         default="receipts",
         help="Folder containing receipts (default: receipts/)",
+    )
+    multi_scan_parser.add_argument(
+        "--train",
+        action="store_true",
+        default=False,
+        help="Show inline prompt editor for iterating on the extraction prompt",
     )
 
     sub.add_parser("sync-descriptions", help="Sync expense descriptions from FreeAgent")
